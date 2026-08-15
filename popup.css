@@ -1,0 +1,16 @@
+body { width: 340px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #18181b; color: #f4f4f5; margin: 0; padding: 20px; }
+h2 { text-align: center; color: #a855f7; font-size: 18px; margin: 0 0 20px 0; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;}
+.section { background: #27272a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #3f3f46; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.section-title { font-size: 13px; font-weight: bold; color: #d4d4d8; margin-bottom: 5px; }
+.help-text { font-size: 11px; color: #a1a1aa; margin: 0 0 10px 0; font-style: italic; }
+label { display: block; font-size: 12px; color: #e4e4e7; margin-bottom: 4px; font-weight: 600; }
+input[type="text"], textarea { width: 100%; box-sizing: border-box; background: #18181b; border: 1px solid #52525b; color: #f4f4f5; padding: 10px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none; transition: 0.2s; }
+input[type="text"]:focus, textarea:focus { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2); }
+.key-recorder { text-align: center; font-weight: bold; color: #2dd4bf !important; cursor: pointer; letter-spacing: 1px;}
+.row { display: flex; gap: 10px; }
+.row div { flex: 1; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.checkbox-row input { width: 16px; height: 16px; cursor: pointer; accent-color: #a855f7; margin: 0; }
+.checkbox-row label { margin: 0; cursor: pointer; }
+button { width: 100%; background: #a855f7; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.2s; margin-top: 5px; }
+button:hover { background: #9333ea; transform: translateY(-1px); }

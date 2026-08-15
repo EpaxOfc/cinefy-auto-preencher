@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Cinefy Autofill Pro",
+  "version": "3.0",
+  "description": "Automação avançada para upload de vídeos no Cinefy.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.cinefy.gg/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Configurações do Cinefy"
+  },
+  "options_page": "popup.html",
+  "content_scripts": [
+    {
+      "matches": ["*://*.cinefy.gg/*"], 
+      "js": ["content.js"]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <h2>⚙️ Configurações Cinefy</h2>
+    
+    <div class="section">
+        <div class="section-title">⌨️ Atalhos do Teclado</div>
+        <p class="help-text">Clique na caixa e pressione a combinação desejada.</p>
+        <div class="row">
+            <div>
+                <label>Copiar/Salvar</label>
+                <input type="text" id="key-save" class="key-recorder" readonly>
+            </div>
+            <div>
+                <label>Preencher Tudo</label>
+                <input type="text" id="key-fill" class="key-recorder" readonly>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">📝 Template Rápido (Botão Amarelo)</div>
+        <label>Título Padrão</label>
+        <input type="text" id="title-template" value="Nome Anime | T1 Ep. 01">
+        
+        <label style="margin-top:12px;">Descrição Padrão</label>
+        <textarea id="desc-template" rows="7"></textarea>
+    </div>
+
+    <div class="section">
+        <div class="section-title">⚙️ Títulos Dinâmicos (Preencher)</div>
+        <p class="help-text">Use <b>{obra}</b>, <b>{temp}</b> e <b>{ep}</b> onde preferir.</p>
+        <label>Formato (Sem Temporada)</label>
+        <input type="text" id="title-no-temp" value="{obra} | Ep. {ep}">
+        
+        <label style="margin-top:8px;">Formato (Com Temporada)</label>
+        <input type="text" id="title-temp" value="{obra} | T{temp} Ep. {ep}">
+    </div>
+
+    <div class="section">
+        <div class="checkbox-row">
+            <input type="checkbox" id="copy-vis">
+            <label>Copiar e colar Visibilidade (Público/Privado)</label>
+        </div>
+    </div>
+
+    <button id="btn-save">💾 Salvar Configurações</button>
+
+    <script src="popup.js"></script>
+</body>
+</html>
