@@ -9,12 +9,22 @@
   "host_permissions": [
     "*://*.cinefy.gg/*"
   ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Configurações do Cinefy"
+    "default_title": "Configurações do Cinefy",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
   },
   "options_page": "popup.html",
   "content_scripts": [
