@@ -59,19 +59,27 @@ async function selecionarMenuSuspenso(nomeDoCampo, textoDaOpcao) {
     let spans = Array.from(document.querySelectorAll('span'));
     let labelSpan = spans.find(s => s.textContent.trim() === nomeDoCampo);
     if (!labelSpan) return;
+    
     let blocoPergunta = labelSpan.parentElement;
-    let walk = document.createTreeWalker(blocoPergunta, NodeFilter.SHOW_TEXT, null, false);
-    let n; let textosAtuais = [];
-    while(n = walk.nextNode()) { textosAtuais.push(n.textContent.trim().toLowerCase()); }
-    let textoBusca = textoDaOpcao.toString().toLowerCase().trim(); 
-    if (textosAtuais.some(t => t.includes(textoBusca))) return; 
     let svgs = Array.from(blocoPergunta.querySelectorAll('svg'));
     if (svgs.length === 0) return;
     let setinha = svgs[svgs.length - 1]; 
+    
+    let dropdownArea = setinha.parentElement.parentElement.parentElement;
+    
+    let walk = document.createTreeWalker(dropdownArea, NodeFilter.SHOW_TEXT, null, false);
+    let n; let textosAtuais = [];
+    while(n = walk.nextNode()) { textosAtuais.push(n.textContent.trim().toLowerCase()); }
+    
+    let textoBusca = textoDaOpcao.toString().toLowerCase().trim(); 
+    if (textosAtuais.some(t => t.includes(textoBusca))) return; 
+    
     if (setinha && setinha.parentElement) setinha.parentElement.click();
+    
     await new Promise(resolve => setTimeout(resolve, 600)); 
     let todosElementos = Array.from((document.getElementById('portal-container') || document.body).querySelectorAll('*'));
     let elementosComTexto = todosElementos.filter(el => el.textContent && el.textContent.toLowerCase().includes(textoBusca));
+    
     if (elementosComTexto.length > 0) {
         elementosComTexto[elementosComTexto.length - 1].click(); await new Promise(resolve => setTimeout(resolve, 300)); 
     } 
@@ -99,16 +107,25 @@ function extrairDaTela(nomeDoCampo, multiplo = false) {
     let spans = Array.from(document.querySelectorAll('span'));
     let label = spans.find(s => s.textContent.trim() === nomeDoCampo);
     if (!label) return "";
-    let cloneBloco = label.parentElement.cloneNode(true);
-    cloneBloco.querySelectorAll('p').forEach(p => p.remove()); 
+    
+    let blocoPergunta = label.parentElement;
+    let svgs = Array.from(blocoPergunta.querySelectorAll('svg'));
+    if (svgs.length === 0) return "";
+    let setinha = svgs[svgs.length - 1]; 
+    
+    let dropdownArea = setinha.parentElement.parentElement.parentElement;
+    
     let textos = [];
-    let walk = document.createTreeWalker(cloneBloco, NodeFilter.SHOW_TEXT, null, false);
+    let walk = document.createTreeWalker(dropdownArea, NodeFilter.SHOW_TEXT, null, false);
     let n; while(n = walk.nextNode()) { if(n.textContent.trim()) textos.push(n.textContent.trim()); }
-    let ignorar = [nomeDoCampo, "Selecionar", "Buscar por tags...", "Buscar..."];
+    
+    let ignorar = ["Selecionar", "Buscar por tags...", "Buscar..."];
     let validos = textos.filter(t => !ignorar.includes(t));
     return multiplo ? [...new Set(validos)].join(", ") : (validos[0] || "");
 }
+
 function lerVisibilidade() { let activeOpt = document.querySelector('div[class*="Option-sc-"].active span[class*="OptionTitle"]'); return activeOpt ? activeOpt.textContent.trim() : ""; }
+
 
 document.body.insertAdjacentHTML('beforeend', `
     <div id="cinefy-container">
@@ -134,7 +151,6 @@ document.body.insertAdjacentHTML('beforeend', `
                 <p style="font-size:12px; color:#a1a1aa; text-align:center; margin-top:0; margin-bottom:15px;">Organiza os episódios matematicamente com cuidado (Evita Block do Servidor).</p>
                 <button id="cinefy-btn-sort" class="cinefy-btn cinefy-btn-fill">🪄 Ordenar Episódios</button>
             </div>
-            
         </div>
     </div>
     <div id="cinefy-modal-overlay"></div>
@@ -192,7 +208,7 @@ function gerarTitulo(obra, temp, ep) {
     else return appSettings.titleNoTemp.replace('{obra}', obra).replace('{ep}', epF);
 }
 
-// VÍDEO 
+//  VÍDEO 
 document.getElementById('cinefy-btn-template').addEventListener('click', () => {
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
     if (campoTitulo) setReactValue(campoTitulo, appSettings.titleTemplate);
@@ -263,7 +279,7 @@ function triggerPreencher() {
             </div>
             <div class="cinefy-modal-actions">
                 <button id="btn-cancel-modal" class="cinefy-btn cinefy-btn-cancel">Cancelar</button>
-                <button id="btn-fill-modal" class="cinefy-btn cinefy-btn-fill">⚡ Mágica!</button>
+                <button id="btn-fill-modal" class="cinefy-btn cinefy-btn-fill">Confirmar</button>
             </div>
         </div>
     `;
@@ -294,7 +310,7 @@ async function iniciarPreenchimentoAutomatico(modelo, temporada, episodio) {
         for (let tag of listaTags) { 
             if (tag !== "") {
                 await selecionarMenuSuspenso("Tags", tag); 
-                await new Promise(resolve => setTimeout(resolve, 300)); // Respiro extra contra rate limit
+                await new Promise(resolve => setTimeout(resolve, 300)); 
             }
         }
     }
@@ -376,7 +392,6 @@ document.getElementById('cinefy-btn-sort').addEventListener('click', async () =>
             await new Promise(r => setTimeout(r, 400)); 
             
             await arrastarESoltarReact(sourceNode, targetNode);
-            
             await new Promise(r => setTimeout(r, 1500)); 
         }
     }
