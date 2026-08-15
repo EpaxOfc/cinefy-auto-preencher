@@ -1,16 +1,10 @@
-// ==========================================
-// 1. CONFIGURAÇÕES E ESTADO
-// ==========================================
-const defaultDesc = `✨ Redes Sociais do Robson
+const defaultDesc = `✨ Minhas Redes Sociais
 ---------------------------------
-🎬  Assista minhas Lives: https://twitch.tv/oirobson
-🎥  Canal Principal: https://www.youtube.com/@reactanimepro
-🔵  Grupo no Telegram: https://t.me/+PihSAhPyAcFmOGEx
-🎙️  Canal de Música Geek: https://www.youtube.com/@oirobson2
-💜 Discord: https://discord.gg/T26vMr6KmT
-▶️ Facebook: @reactanimepro
-📸 Instagram: @reactanimepro
-🎥 TikTok: @reactanimepro`;
+🎬  Assista minhas Lives: https://twitch.tv/seucanal
+🎥  Canal Principal: https://www.youtube.com/@seucanal
+📸  Instagram: @seuinstagram
+
+(Você pode alterar este texto nas configurações da extensão)`;
 
 let appSettings = { 
     shSave: { altKey: true, ctrlKey: false, shiftKey: false, key: 's' },
@@ -23,9 +17,6 @@ let appSettings = {
 chrome.storage.local.get(['appSettings'], (data) => { if(data.appSettings) appSettings = data.appSettings; });
 chrome.storage.onChanged.addListener((changes) => { if(changes.appSettings) appSettings = changes.appSettings.newValue; });
 
-// ==========================================
-// 2. ESTÉTICA E INTERFACE VISUAL (CSS)
-// ==========================================
 const uiStyles = `
     #cinefy-container { display: none; z-index: 999999; position: fixed; bottom: 20px; right: 20px; }
     #cinefy-container.on-page { display: block; }
@@ -56,9 +47,6 @@ const uiStyles = `
 `;
 const styleElement = document.createElement('style'); styleElement.innerHTML = uiStyles; document.head.appendChild(styleElement);
 
-// ==========================================
-// 3. FUNÇÕES BASE DA AUTOMAÇÃO
-// ==========================================
 function setReactValue(element, value) {
     const setter = Object.getOwnPropertyDescriptor(element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype, "value").set;
     element.focus(); setter.call(element, value);
@@ -122,9 +110,6 @@ function extrairDaTela(nomeDoCampo, multiplo = false) {
 }
 function lerVisibilidade() { let activeOpt = document.querySelector('div[class*="Option-sc-"].active span[class*="OptionTitle"]'); return activeOpt ? activeOpt.textContent.trim() : ""; }
 
-// ==========================================
-// 4. ESTRUTURA DO HTML (UI) E EVENTOS
-// ==========================================
 document.body.insertAdjacentHTML('beforeend', `
     <div id="cinefy-container">
         <button id="cinefy-min-btn" title="Expandir Cinefy Autofill">🎬</button>
@@ -207,9 +192,7 @@ function gerarTitulo(obra, temp, ep) {
     else return appSettings.titleNoTemp.replace('{obra}', obra).replace('{ep}', epF);
 }
 
-// ------------------------------------------
-// LÓGICA: VÍDEO 
-// ------------------------------------------
+// VÍDEO 
 document.getElementById('cinefy-btn-template').addEventListener('click', () => {
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
     if (campoTitulo) setReactValue(campoTitulo, appSettings.titleTemplate);
@@ -337,9 +320,7 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// ------------------------------------------
-// LÓGICA: ORDENADOR DE PLAYLIST (Com Respiro de Servidor)
-// ------------------------------------------
+// ORDENADOR DE PLAYLIST
 document.getElementById('cinefy-btn-sort').addEventListener('click', async () => {
     let listContainer = document.querySelector('div[class*="VideoList"]');
     if (!listContainer) return;
@@ -386,7 +367,6 @@ document.getElementById('cinefy-btn-sort').addEventListener('click', async () =>
         let currentIdAtI = currentItemAtI.getAttribute('data-handler-id');
 
         if (currentIdAtI !== targetId) {
-            // Atualiza o Toast para mostrar que o robô não travou
             showToast(`🪄 Ordenando... Movimento ${i + 1} de ${targetIds.length}`, 3000);
 
             let sourceNode = currentDOMItems.find(el => el.getAttribute('data-handler-id') === targetId);
@@ -397,7 +377,6 @@ document.getElementById('cinefy-btn-sort').addEventListener('click', async () =>
             
             await arrastarESoltarReact(sourceNode, targetNode);
             
-            // O RESPIRO: Espera 1.5s antes do próximo drag para a API do site salvar a ordem com calma
             await new Promise(r => setTimeout(r, 1500)); 
         }
     }

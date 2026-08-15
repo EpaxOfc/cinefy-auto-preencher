@@ -1,13 +1,11 @@
-const defaultDesc = `✨ Redes Sociais do Robson
+// Texto genérico para quem baixar a extensão do GitHub
+const defaultDesc = `✨ Minhas Redes Sociais
 ---------------------------------
-🎬  Assista minhas Lives: https://twitch.tv/oirobson
-🎥  Canal Principal: https://www.youtube.com/@reactanimepro
-🔵  Grupo no Telegram: https://t.me/+PihSAhPyAcFmOGEx
-🎙️  Canal de Música Geek: https://www.youtube.com/@oirobson2
-💜 Discord: https://discord.gg/T26vMr6KmT
-▶️ Facebook: @reactanimepro
-📸 Instagram: @reactanimepro
-🎥 TikTok: @reactanimepro`;
+🎬  Assista minhas Lives: https://twitch.tv/seucanal
+🎥  Canal Principal: https://www.youtube.com/@seucanal
+📸  Instagram: @seuinstagram
+
+(Você pode alterar este texto nas configurações da extensão)`;
 
 let settings = {};
 
