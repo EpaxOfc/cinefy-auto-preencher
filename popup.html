@@ -22,6 +22,34 @@
         </div>
     </div>
 
+    <!-- SEÇÃO DE DELAYS E RETRY -->
+    <div class="section">
+        <div class="section-title">⏱️ Velocidades de Espera (Delays)</div>
+        <label>Busca da Obra (ms)</label>
+        <input type="number" id="delay-obra" min="500" max="6000" step="100" value="2000">
+
+        <label style="margin-top:8px;">Abrir Menus (Tags/Idade) (ms)</label>
+        <input type="number" id="delay-menu" min="200" max="4000" step="50" value="600">
+
+        <label style="margin-top:8px;">Busca da Playlist (ms)</label>
+        <input type="number" id="delay-playlist" min="300" max="5000" step="100" value="1000">
+
+        <div class="checkbox-row" style="margin-top: 12px;">
+            <input type="checkbox" id="retry-on-fail" checked>
+            <label for="retry-on-fail">Tentar novamente 3 vezes se falhar (metade do tempo)</label>
+        </div>
+    </div>
+
+    <!-- NOVA SEÇÃO: AVALIAÇÃO DA OBRA -->
+    <div class="section">
+        <div class="section-title">⭐ Avaliação da Obra (Nota)</div>
+        <div class="checkbox-row">
+            <input type="checkbox" id="enable-rating" checked>
+            <label for="enable-rating">Verificar/Aplicar a nota salva automaticamente</label>
+        </div>
+        <p class="help-text" style="margin-top:5px;">A extensão capta a nota quando você clica em "Avaliar" e a reaplica em episódios futuros.</p>
+    </div>
+
     <div class="section">
         <div class="section-title">📝 Template Rápido (Botão Amarelo)</div>
         <label>Título Padrão</label>
@@ -44,7 +72,7 @@
     <div class="section">
         <div class="checkbox-row">
             <input type="checkbox" id="copy-vis">
-            <label>Copiar e colar Visibilidade (Público/Privado)</label>
+            <label for="copy-vis">Copiar e colar Visibilidade (Público/Privado)</label>
         </div>
     </div>
 

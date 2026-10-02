@@ -1,3 +1,9 @@
+// (TRAVA DE TESTE)
+// true  = Altera a barra e NÃO fecha o modal
+// false = Altera a barra, clica em Avaliar
+const MODO_TESTE_NOTA = false; 
+
+
 const defaultDesc = `✨ Minhas Redes Sociais
 ---------------------------------
 🎬  Assista minhas Lives: https://twitch.tv/seucanal
@@ -10,12 +16,19 @@ let appSettings = {
     shSave: { altKey: true, ctrlKey: false, shiftKey: false, key: 's' },
     shFill: { altKey: true, ctrlKey: false, shiftKey: false, key: 'b' },
     titleTemplate: "Nome Anime | T1 Ep. 01",
-    titleNoTemp: "{obra} | Ep. {ep}", titleTemp: "{obra} | T{temp} Ep. {ep}",
-    copyVis: false, descTemplate: defaultDesc 
+    titleNoTemp: "{obra} | Ep. {ep}", 
+    titleTemp: "{obra} | T{temp} Ep. {ep}",
+    copyVis: false, 
+    descTemplate: defaultDesc,
+    delayObra: 2000,
+    delayMenu: 600,
+    delayPlaylist: 1000,
+    retryOnFail: true,
+    enableRating: true
 };
 
-chrome.storage.local.get(['appSettings'], (data) => { if(data.appSettings) appSettings = data.appSettings; });
-chrome.storage.onChanged.addListener((changes) => { if(changes.appSettings) appSettings = changes.appSettings.newValue; });
+chrome.storage.local.get(['appSettings'], (data) => { if(data.appSettings) appSettings = Object.assign(appSettings, data.appSettings); });
+chrome.storage.onChanged.addListener((changes) => { if(changes.appSettings) appSettings = Object.assign(appSettings, changes.appSettings.newValue); });
 
 const uiStyles = `
     #cinefy-container { display: none; z-index: 999999; position: fixed; bottom: 20px; right: 20px; }
@@ -47,86 +60,365 @@ const uiStyles = `
 `;
 const styleElement = document.createElement('style'); styleElement.innerHTML = uiStyles; document.head.appendChild(styleElement);
 
+// === RASTREADORES GLOBAIS (NOTA E TEMPORADA) ===
+let ultimaNotaDetectada = "";
+let ultimaTempNotaDetectada = "";
+
+document.addEventListener('click', (e) => {
+    if (!appSettings.enableRating) return;
+    const btn = e.target.closest('button');
+    if (btn && btn.textContent.toLowerCase().includes('avaliar')) {
+        const modal = btn.closest('[role="dialog"]') || document.querySelector('div[class*="Panel-sc-"]');
+        if (modal) {
+            const scoreSpan = modal.querySelector('span[class*="Score-sc-"]');
+            if (scoreSpan) ultimaNotaDetectada = scoreSpan.textContent.trim();
+            
+            // Pega qual temporada estava selecionada ao clicar em Avaliar
+            const tempDisplay = modal.querySelector('div[class*="SelectMain"] span[class*="DisplayName"]');
+            if (tempDisplay) ultimaTempNotaDetectada = tempDisplay.textContent.trim();
+        }
+    }
+}, true); 
+
+// === SIMULAÇÕES DE EVENTOS REACT ===
+function esperar(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function simularClique(el) {
+    if (!el) return;
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    el.click();
+}
+
+function simularCliqueCoordenadas(el, x, y) {
+    if (!el) return;
+    const evts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    el.dispatchEvent(new PointerEvent('pointerdown', evts));
+    el.dispatchEvent(new MouseEvent('mousedown', evts));
+    el.dispatchEvent(new PointerEvent('pointerup', evts));
+    el.dispatchEvent(new MouseEvent('mouseup', evts));
+    el.dispatchEvent(new MouseEvent('click', evts));
+}
+
 function setReactValue(element, value) {
-    const setter = Object.getOwnPropertyDescriptor(element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype, "value").set;
-    element.focus(); setter.call(element, value);
-    element.dispatchEvent(new Event('input', { bubbles: true })); element.dispatchEvent(new Event('change', { bubbles: true }));
+    if (!element) return;
+    const isTextarea = element.tagName === 'TEXTAREA';
+    const proto = isTextarea ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    element.focus();
+    setter.call(element, value);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
 }
-async function fecharMenu() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await new Promise(resolve => setTimeout(resolve, 300)); }
 
-async function selecionarMenuSuspenso(nomeDoCampo, textoDaOpcao) {
-    if(!textoDaOpcao) return; 
-    let spans = Array.from(document.querySelectorAll('span'));
-    let labelSpan = spans.find(s => s.textContent.trim() === nomeDoCampo);
-    if (!labelSpan) return;
-    
-    let blocoPergunta = labelSpan.parentElement;
-    let svgs = Array.from(blocoPergunta.querySelectorAll('svg'));
-    if (svgs.length === 0) return;
-    let setinha = svgs[svgs.length - 1]; 
-    
-    let dropdownArea = setinha.parentElement.parentElement.parentElement;
-    
-    let walk = document.createTreeWalker(dropdownArea, NodeFilter.SHOW_TEXT, null, false);
-    let n; let textosAtuais = [];
-    while(n = walk.nextNode()) { textosAtuais.push(n.textContent.trim().toLowerCase()); }
-    
-    let textoBusca = textoDaOpcao.toString().toLowerCase().trim(); 
-    if (textosAtuais.some(t => t.includes(textoBusca))) return; 
-    
-    if (setinha && setinha.parentElement) setinha.parentElement.click();
-    
-    await new Promise(resolve => setTimeout(resolve, 600)); 
-    let todosElementos = Array.from((document.getElementById('portal-container') || document.body).querySelectorAll('*'));
-    let elementosComTexto = todosElementos.filter(el => el.textContent && el.textContent.toLowerCase().includes(textoBusca));
-    
-    if (elementosComTexto.length > 0) {
-        elementosComTexto[elementosComTexto.length - 1].click(); await new Promise(resolve => setTimeout(resolve, 300)); 
-    } 
+async function fecharMenu() {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    await esperar(200);
+}
+
+async function executarComRetry(verificarFn, delayOriginal, descricao = "") {
+    await esperar(delayOriginal);
+    let res = await verificarFn();
+    if (res) return res;
+
+    if (appSettings.retryOnFail) {
+        const delayMetade = Math.max(150, Math.floor(delayOriginal / 2));
+        for (let i = 1; i <= 3; i++) {
+            await esperar(delayMetade);
+            res = await verificarFn();
+            if (res) return res;
+        }
+    }
+    return null;
+}
+
+// === LOCALIZADORES BASEADOS NO HTML DO CINEFY ===
+function obterBlocoPergunta(nomeTitulo) {
+    const nomeLower = nomeTitulo.toLowerCase().trim();
+    const blocos = Array.from(document.querySelectorAll('div[class*="Question-sc-"], div[class*="Container-sc-d623e18b"]'));
+    return blocos.find(b => {
+        const spanText = b.querySelector('span[class*="Text-sc-"], label[class*="Label-sc-"]');
+        return spanText && spanText.textContent.trim().toLowerCase() === nomeLower;
+    });
+}
+
+function obterValorAtualDoCampo(nomeCampo) {
+    const bloco = obterBlocoPergunta(nomeCampo);
+    if (!bloco) return "";
+    const displaySpan = bloco.querySelector('span[class*="DisplayName"]');
+    if (!displaySpan) return "";
+    const txt = displaySpan.textContent.trim();
+    if (displaySpan.className.includes("Placeholder") || txt.toLowerCase() === "selecionar") {
+        return "";
+    }
+    return txt;
+}
+
+function abrirCampoDropdown(bloco) {
+    if (!bloco) return null;
+    const selectMain = bloco.querySelector('div[class*="SelectMain"]');
+    if (selectMain) simularClique(selectMain);
+    return selectMain;
+}
+
+function clicarOpcaoNoMenu(textoBusca) {
+    const busca = textoBusca.toString().toLowerCase().trim();
+    const menuContainer = document.querySelector('div[class*="SelectMenuContainer"]') || document.body;
+
+    const elementos = Array.from(menuContainer.querySelectorAll('span, p, div')).filter(el => {
+        if (el.closest('#cinefy-container') || el.closest('#cinefy-modal-overlay')) return false;
+        if (['INPUT', 'TEXTAREA', 'STYLE', 'SCRIPT'].includes(el.tagName)) return false;
+        if (el.offsetWidth === 0 && el.offsetHeight === 0) return false;
+        if (el.matches('span[class*="Text-sc-"], label[class*="Label-sc-"]')) return false;
+
+        const txt = el.textContent ? el.textContent.trim().toLowerCase() : '';
+        return txt === busca || txt.includes(busca);
+    });
+
+    if (elementos.length === 0) return false;
+
+    elementos.sort((a, b) => a.textContent.trim().length - b.textContent.trim().length);
+    const alvo = elementos[0];
+
+    const itemLinha = alvo.closest('div[class*="Container-sc-5e52fe2-0"]') || alvo.parentElement || alvo;
+    const svgIcon = itemLinha.querySelector('div[class*="Icon"] svg');
+    if (svgIcon) {
+        const pathData = svgIcon.innerHTML;
+        if (!pathData.includes('M208,28H48')) return true; // Já marcado
+    }
+
+    simularClique(alvo.closest('div[role="option"], li, button') || alvo);
+    return true;
+}
+
+// === INTERAÇÕES AUTOMÁTICAS ===
+
+// 1 & 2: Vincular Obra
+async function vincularObra(nomeObra) {
+    if (!nomeObra) return;
+    const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra (opcional)");
+    if (!blocoObra) return;
+
+    const cardSelected = blocoObra.querySelector('div[class*="selected"]');
+    if (cardSelected) {
+        const pNome = cardSelected.querySelector('p');
+        const nomeAtual = pNome ? pNome.textContent.trim().toLowerCase() : "";
+        if (nomeAtual === nomeObra.toLowerCase().trim()) return; 
+        
+        const btnRemover = cardSelected.querySelector('button');
+        if (btnRemover) {
+            simularClique(btnRemover);
+            await esperar(500);
+        }
+    }
+
+    let inputObra = blocoObra.querySelector('input') || document.querySelector('input[placeholder*="Pesquisar obra" i]');
+    if (!inputObra) return;
+
+    setReactValue(inputObra, nomeObra);
+
+    await executarComRetry(() => {
+        let nomeSemAno = nomeObra.replace(/\s*\(\d{4}\)$/, '').trim().toLowerCase();
+        const menuContainer = document.querySelector('div[class*="SelectMenuContainer"]') || document.body;
+        const opcoesObra = Array.from(menuContainer.querySelectorAll('div[class*="Container-sc-b5b30e7e"]'));
+        
+        for (let op of opcoesObra) {
+            const pTitle = op.querySelector('p'); 
+            if (pTitle && pTitle.textContent.trim().toLowerCase() === nomeSemAno) {
+                simularClique(op);
+                return true;
+            }
+        }
+        
+        if (opcoesObra.length > 0) {
+            simularClique(opcoesObra[0]);
+            return true;
+        }
+        return false;
+    }, appSettings.delayObra, `Obra: ${nomeObra}`);
+
     await fecharMenu();
 }
 
-async function pesquisarEConfirmarSerie(nomeObra) {
-    if(!nomeObra) return;
-    let campoPesquisar = document.querySelector('input[placeholder="Pesquisar..."]');
-    if (!campoPesquisar) return; 
-    setReactValue(campoPesquisar, nomeObra);
-    await new Promise(resolve => setTimeout(resolve, 2000)); 
-    let spans = Array.from(document.querySelectorAll('span'));
-    let nomeLowerCase = nomeObra.toLowerCase().trim();
-    let spanAlvo = spans.find(span => span.textContent && span.textContent.toLowerCase().includes(nomeLowerCase));
-    if (spanAlvo) {
-        let opcaoClicavel = spanAlvo.closest('div');
-        if (opcaoClicavel) opcaoClicavel.click(); else spanAlvo.click();
-        await new Promise(resolve => setTimeout(resolve, 300)); 
-    } 
+// 3: Tags
+async function selecionarTags(tagsStr) {
+    if (!tagsStr) return;
+    const bloco = obterBlocoPergunta("Tags");
+    if (!bloco) return;
+
+    const valorAtual = obterValorAtualDoCampo("Tags");
+    const listaTags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+
+    if (listaTags.length === 1 && valorAtual.toLowerCase() === listaTags[0].toLowerCase()) return;
+
+    abrirCampoDropdown(bloco);
+    await esperar(appSettings.delayMenu);
+
+    for (let tag of listaTags) {
+        await executarComRetry(() => clicarOpcaoNoMenu(tag), appSettings.delayMenu, `Tag: ${tag}`);
+        await esperar(200);
+    }
     await fecharMenu();
 }
 
-function extrairDaTela(nomeDoCampo, multiplo = false) {
-    let spans = Array.from(document.querySelectorAll('span'));
-    let label = spans.find(s => s.textContent.trim() === nomeDoCampo);
-    if (!label) return "";
-    
-    let blocoPergunta = label.parentElement;
-    let svgs = Array.from(blocoPergunta.querySelectorAll('svg'));
-    if (svgs.length === 0) return "";
-    let setinha = svgs[svgs.length - 1]; 
-    
-    let dropdownArea = setinha.parentElement.parentElement.parentElement;
-    
-    let textos = [];
-    let walk = document.createTreeWalker(dropdownArea, NodeFilter.SHOW_TEXT, null, false);
-    let n; while(n = walk.nextNode()) { if(n.textContent.trim()) textos.push(n.textContent.trim()); }
-    
-    let ignorar = ["Selecionar", "Buscar por tags...", "Buscar..."];
-    let validos = textos.filter(t => !ignorar.includes(t));
-    return multiplo ? [...new Set(validos)].join(", ") : (validos[0] || "");
+// 4: Playlists
+async function selecionarPlaylist(nomePlaylist) {
+    if (!nomePlaylist) return;
+    const bloco = obterBlocoPergunta("Playlists");
+    if (!bloco) return;
+
+    const valorAtual = obterValorAtualDoCampo("Playlists");
+    if (valorAtual.toLowerCase().includes(nomePlaylist.toLowerCase().trim())) return; 
+
+    abrirCampoDropdown(bloco);
+    await esperar(appSettings.delayMenu);
+
+    let achou = clicarOpcaoNoMenu(nomePlaylist);
+
+    if (!achou) {
+        const menuFlutuante = document.querySelector('div[class*="SelectMenuContainer"]') || document.body;
+        const campoBusca = menuFlutuante.querySelector('input[placeholder*="Buscar" i]') || menuFlutuante.querySelector('input');
+        if (campoBusca) {
+            setReactValue(campoBusca, nomePlaylist);
+            await executarComRetry(() => clicarOpcaoNoMenu(nomePlaylist), appSettings.delayPlaylist, `Playlist: ${nomePlaylist}`);
+        }
+    }
+    await fecharMenu();
 }
 
-function lerVisibilidade() { let activeOpt = document.querySelector('div[class*="Option-sc-"].active span[class*="OptionTitle"]'); return activeOpt ? activeOpt.textContent.trim() : ""; }
+// 5: Classificação indicativa
+async function selecionarClassificacao(idadeStr) {
+    if (!idadeStr) return;
+    const bloco = obterBlocoPergunta("Classificação indicativa");
+    if (!bloco) return;
 
+    const valorAtual = obterValorAtualDoCampo("Classificação indicativa");
+    if (valorAtual.toLowerCase().includes(idadeStr.toLowerCase().trim())) return; 
 
+    abrirCampoDropdown(bloco);
+    await esperar(appSettings.delayMenu);
+
+    const apenasNum = idadeStr.replace(/\D/g, '');
+    const isLivre = idadeStr.toLowerCase().includes('livre') || idadeStr.toLowerCase().trim() === 'l';
+
+    await executarComRetry(() => {
+        if (isLivre) return clicarOpcaoNoMenu("[l]");
+        if (apenasNum) return clicarOpcaoNoMenu(`[+${apenasNum}]`);
+        return clicarOpcaoNoMenu(idadeStr);
+    }, appSettings.delayMenu, `Classificação: ${idadeStr}`);
+
+    await fecharMenu();
+}
+
+// 6: Aplicar Avaliação (NOTA)
+async function aplicarNota(notaDesejada, temporadaDesejada) {
+    if (!notaDesejada || !appSettings.enableRating) return;
+    if (!temporadaDesejada) temporadaDesejada = "Todas as temporadas";
+
+    const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra");
+    if (!blocoObra) return;
+
+    // Verificando a trava de 24 horas para aquela temporada específica
+    const pAvaliacao = Array.from(blocoObra.querySelectorAll('p')).find(p => p.textContent.toLowerCase().includes('sua avaliação'));
+    if (pAvaliacao && !MODO_TESTE_NOTA) {
+        const textoAval = pAvaliacao.textContent.toLowerCase();
+        let bloqueado = false;
+        
+        if (temporadaDesejada.toLowerCase() === "todas as temporadas") {
+            // Se o texto tiver '·', significa que ele votou em uma temp específica e NÃO na obra toda
+            if (!textoAval.includes('·')) bloqueado = true;
+        } else {
+            if (textoAval.includes(temporadaDesejada.toLowerCase())) bloqueado = true;
+        }
+        
+        if (bloqueado) {
+            console.log(`[Cinefy Autofill] Trava de 24h ativa para: ${temporadaDesejada}. Pulando a nota.`);
+            return;
+        }
+    }
+
+    const btnAbrirNota = Array.from(blocoObra.querySelectorAll('button')).find(b => {
+        const text = b.textContent.toLowerCase();
+        return text.includes('nota') || text.includes('avaliar') || text.includes('avaliação');
+    });
+
+    if (!btnAbrirNota) return;
+
+    simularClique(btnAbrirNota);
+    await esperar(800);
+
+    const modal = document.querySelector('[role="dialog"]') || document.querySelector('div[class*="Panel-sc-"]');
+    if (!modal) return;
+
+    // 1. ALTERAR A TEMPORADA DA AVALIAÇÃO
+    const btnTemp = modal.querySelector('div[class*="SelectMain"]');
+    if (btnTemp) {
+        const spanDisplay = btnTemp.querySelector('span[class*="DisplayName"]');
+        const currentTemp = spanDisplay ? spanDisplay.textContent.trim().toLowerCase() : "";
+        
+        if (currentTemp !== temporadaDesejada.toLowerCase()) {
+            simularClique(btnTemp);
+            await esperar(500); // Aguarda o menu abrir
+            
+            clicarOpcaoNoMenu(temporadaDesejada);
+            await esperar(600); // Aguarda o modal se atualizar (MUITO IMPORTANTE)
+        }
+    }
+
+    // 2. ALTERAR O SLIDER (BARRA DE NOTA)
+    const track = modal.querySelector('div[class*="Track-sc-"]');
+    if (track) {
+        const rect = track.getBoundingClientRect();
+        
+        let val = parseFloat(notaDesejada);
+        if (isNaN(val)) val = 10;
+        if (val < 1) val = 1;
+        if (val > 10) val = 10;
+        
+        // Trilha vai de 1 a 10 (range = 9)
+        const percent = (val - 1) / 9;
+        const targetX = rect.left + (rect.width * percent);
+        const targetY = rect.top + (rect.height / 2);
+
+        simularCliqueCoordenadas(track, targetX, targetY);
+        await esperar(400); 
+    }
+
+    // 3. FINALIZAR (CLICAR EM AVALIAR)
+    const btnAvaliar = Array.from(modal.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'avaliar');
+    
+    if (MODO_TESTE_NOTA) {
+        showToast(`🛠️ MODO TESTE: Barra movida para ${notaDesejada} em [${temporadaDesejada}]. NÃO FECHADO PARA AVALIAÇÃO.`);
+        // Note que o fecharMenu() FOI REMOVIDO DAQUI para a tela ficar aberta
+    } else {
+        if (btnAvaliar) {
+            simularClique(btnAvaliar);
+            await esperar(400);
+        } else {
+            await fecharMenu();
+        }
+    }
+}
+
+// === EXTRAÇÃO PARA SALVAR TELA ===
+function extrairObraAtual(tituloCompleto) {
+    const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra (opcional)");
+    if (blocoObra) {
+        const pNome = blocoObra.querySelector('div[class*="selected"] p');
+        if (pNome && pNome.textContent.trim()) {
+            return pNome.textContent.trim(); 
+        }
+    }
+    return tituloCompleto ? tituloCompleto.split(/[|-]/)[0].trim() : "";
+}
+
+function lerVisibilidade() { 
+    let activeOpt = document.querySelector('div[class*="Option-sc-"].active span[class*="OptionTitle"]'); 
+    return activeOpt ? activeOpt.textContent.trim() : ""; 
+}
+
+// === INTERFACE DO PAINEL CINEFY ===
 document.body.insertAdjacentHTML('beforeend', `
     <div id="cinefy-container">
         <button id="cinefy-min-btn" title="Expandir Cinefy Autofill">🎬</button>
@@ -148,7 +440,7 @@ document.body.insertAdjacentHTML('beforeend', `
             </div>
             
             <div id="playlist-menu" style="display: none;">
-                <p style="font-size:12px; color:#a1a1aa; text-align:center; margin-top:0; margin-bottom:15px;">Organiza os episódios matematicamente com cuidado (Evita Block do Servidor).</p>
+                <p style="font-size:12px; color:#a1a1aa; text-align:center; margin-top:0; margin-bottom:15px;">Organiza os episódios automaticamente.</p>
                 <button id="cinefy-btn-sort" class="cinefy-btn cinefy-btn-fill">🪄 Ordenar Episódios</button>
             </div>
         </div>
@@ -171,7 +463,7 @@ minBtn.addEventListener('click', () => { isPanelCollapsed = false; panel.classLi
 
 document.getElementById('cinefy-settings-btn').addEventListener('click', () => {
     let isOpera = (navigator.userAgent.indexOf("Opera") !== -1 || navigator.userAgent.indexOf('OPR') !== -1);
-    if (isOpera) { showToast("⚙️ NO OPERA: Clique no ícone de extensões lá em cima no navegador para abrir as Configurações!", 6000); } 
+    if (isOpera) { showToast("⚙️ NO OPERA: Abra pelas extensões no topo do navegador!", 6000); } 
     else { chrome.runtime.sendMessage({action: "open_settings"}); }
 });
 
@@ -192,6 +484,7 @@ chrome.storage.local.get(['cinefySlots', 'slotAtivo'], function(data) {
     if (data.slotAtivo) select.value = data.slotAtivo;
     atualizarNomesSelect();
 });
+
 function atualizarNomesSelect() {
     let select = document.getElementById('cinefy-slot');
     for (let i = 0; i < 5; i++) {
@@ -203,12 +496,22 @@ document.getElementById('cinefy-slot').addEventListener('change', (e) => { chrom
 const overlay = document.getElementById('cinefy-modal-overlay');
 
 function gerarTitulo(obra, temp, ep) {
-    let epF = ep.length === 1 ? "0" + ep : ep;
-    if (temp && temp.trim() !== "") return appSettings.titleTemp.replace('{obra}', obra).replace('{temp}', temp).replace('{ep}', epF);
-    else return appSettings.titleNoTemp.replace('{obra}', obra).replace('{ep}', epF);
+    let epF = ep ? ep.toString().trim() : "01";
+    if (epF.length === 1) epF = "0" + epF;
+    let t = temp ? temp.toString().trim() : "";
+    
+    let obraLimpa = obra.replace(/\s*\(\d{4}\)$/, '').trim();
+    
+    if (t !== "") {
+        let tpl = appSettings.titleTemp || "{obra} | T{temp} Ep. {ep}";
+        return tpl.replace(/{obra}/g, obraLimpa).replace(/{temp}/g, t).replace(/{ep}/g, epF);
+    } else {
+        let tpl = appSettings.titleNoTemp || "{obra} | Ep. {ep}";
+        return tpl.replace(/{obra}/g, obraLimpa).replace(/{ep}/g, epF);
+    }
 }
 
-//  VÍDEO 
+// Inserir Template Rápido
 document.getElementById('cinefy-btn-template').addEventListener('click', () => {
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
     if (campoTitulo) setReactValue(campoTitulo, appSettings.titleTemplate);
@@ -217,24 +520,65 @@ document.getElementById('cinefy-btn-template').addEventListener('click', () => {
     showToast("📝 Template Padrão Inserido!");
 });
 
+// Copiar & Salvar Tela
 function triggerSalvar() {
-    let tituloInput = document.querySelector('input[placeholder="Seu título"]');
-    let tituloCompleto = tituloInput ? tituloInput.value : "";
-    let l_obra = tituloCompleto ? tituloCompleto.split(/[|-]/)[0].trim() : "";
+    let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
+    let tituloCompleto = campoTitulo ? campoTitulo.value : "";
+    let l_obra = extrairObraAtual(tituloCompleto);
     let l_desc = document.querySelector('textarea') ? document.querySelector('textarea').value : "";
-    let l_tipo = extrairDaTela("Conteúdo (opcional)") || "Série";
-    let l_play = extrairDaTela("Playlists");
-    let l_idade = extrairDaTela("Classificação indicativa");
-    let l_tags = extrairDaTela("Tags", true);
+    let l_play = obterValorAtualDoCampo("Playlists");
+    let l_idade = obterValorAtualDoCampo("Classificação indicativa");
+    let l_tags = obterValorAtualDoCampo("Tags");
     let l_vis = appSettings.copyVis ? lerVisibilidade() : "";
+
+    // LÓGICA INTELIGENTE DE CAPTURA DA NOTA E TEMPORADA PELA TELA
+    let l_nota = ultimaNotaDetectada;
+    let l_nota_temp = ultimaTempNotaDetectada;
+
+    const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra");
+    if (blocoObra) {
+        const pAvaliacao = Array.from(blocoObra.querySelectorAll('p')).find(p => p.textContent.toLowerCase().includes('sua avaliação'));
+        if (pAvaliacao) {
+            const textoAval = pAvaliacao.textContent; // Ex: "Sua avaliação · Temporada 1: 3.55" ou "Sua avaliação: 10.00"
+            
+            // Pega os números (Nota)
+            const matchNota = textoAval.match(/(\d+\.\d{2})/);
+            if (matchNota && !l_nota) l_nota = matchNota[1];
+            
+            // Pega a Temporada pelo separador '·'
+            if (textoAval.includes('·')) {
+                const partes = textoAval.split('·');
+                if (partes.length > 1) {
+                    const textoTemp = partes[1].split(':')[0].trim();
+                    if (!l_nota_temp) l_nota_temp = textoTemp;
+                }
+            } else {
+                if (!l_nota_temp) l_nota_temp = "Todas as temporadas";
+            }
+        }
+    }
+    
+    // Fallbacks
+    if (!l_nota_temp) l_nota_temp = "Todas as temporadas";
+    if (!l_nota) l_nota = "10.00";
 
     overlay.innerHTML = `
         <div class="cinefy-modal">
             <h2>Revisar Modelo</h2>
-            <label>Série ou Filme?</label>
-            <input id="m-tipo" class="cinefy-input" value="${l_tipo}">
-            <label>Nome da Obra</label>
+            <label>Obra Exata (com ano)</label>
             <input id="m-obra" class="cinefy-input" value="${l_obra}">
+            
+            <div class="cinefy-row">
+                <div style="flex: 2;">
+                    <label>Temporada da Nota</label>
+                    <input id="m-nota-temp" class="cinefy-input" value="${l_nota_temp}" placeholder="Ex: Temporada 1">
+                </div>
+                <div style="flex: 1;">
+                    <label>Nota / 10</label>
+                    <input id="m-nota" class="cinefy-input" value="${l_nota}" placeholder="Ex: 5.55">
+                </div>
+            </div>
+
             <label>Playlist</label>
             <input id="m-play" class="cinefy-input" value="${l_play}">
             <label>Classificação Indicativa</label>
@@ -252,17 +596,27 @@ function triggerSalvar() {
     document.getElementById('btn-save-modal').onclick = () => {
         let slotIndex = document.getElementById('cinefy-slot').value;
         arrayModelos[slotIndex] = {
-            tipoConteudo: document.getElementById('m-tipo').value, nomeObra: document.getElementById('m-obra').value,
-            playlist: document.getElementById('m-play').value, idade: document.getElementById('m-idade').value,
-            tags: document.getElementById('m-tags').value, descricao: l_desc, visibility: l_vis, ultimoEp: "00", ultimaTemp: ""
+            nomeObra: document.getElementById('m-obra').value.trim(),
+            notaTemporada: document.getElementById('m-nota-temp').value.trim(),
+            nota: document.getElementById('m-nota').value.trim(),
+            playlist: document.getElementById('m-play').value.trim(),
+            idade: document.getElementById('m-idade').value.trim(),
+            tags: document.getElementById('m-tags').value.trim(),
+            descricao: l_desc,
+            visibility: l_vis,
+            ultimoEp: arrayModelos[slotIndex]?.ultimoEp || "00",
+            ultimaTemp: arrayModelos[slotIndex]?.ultimaTemp || ""
         };
         chrome.storage.local.set({ 'cinefySlots': arrayModelos }, () => {
-            atualizarNomesSelect(); overlay.style.display = 'none'; showToast("✅ Modelo Salvo com Sucesso!");
+            atualizarNomesSelect();
+            overlay.style.display = 'none';
+            showToast("✅ Modelo Salvo com Sucesso!");
         });
     };
 }
 document.getElementById('cinefy-btn-save').addEventListener('click', triggerSalvar);
 
+// Preencher Vídeo
 function triggerPreencher() {
     let slotIndex = document.getElementById('cinefy-slot').value;
     let modelo = arrayModelos[slotIndex];
@@ -283,46 +637,47 @@ function triggerPreencher() {
             </div>
         </div>
     `;
-    overlay.style.display = 'flex'; document.getElementById('m-ep').focus(); 
+    overlay.style.display = 'flex';
+    document.getElementById('m-ep').focus(); 
     document.getElementById('btn-cancel-modal').onclick = () => { overlay.style.display = 'none'; };
     document.getElementById('btn-fill-modal').onclick = () => {
-        let nTemp = document.getElementById('m-temp').value; let nEp = document.getElementById('m-ep').value;
-        arrayModelos[slotIndex].ultimaTemp = nTemp; arrayModelos[slotIndex].ultimoEp = nEp;
+        let nTemp = document.getElementById('m-temp').value;
+        let nEp = document.getElementById('m-ep').value;
+        arrayModelos[slotIndex].ultimaTemp = nTemp;
+        arrayModelos[slotIndex].ultimoEp = nEp;
         chrome.storage.local.set({ 'cinefySlots': arrayModelos });
-        overlay.style.display = 'none'; showToast("⚡ Iniciando preenchimento...");
+        overlay.style.display = 'none';
+        showToast("⚡ Iniciando preenchimento...");
         iniciarPreenchimentoAutomatico(modelo, nTemp, nEp);
     };
 }
 document.getElementById('cinefy-btn-fill').addEventListener('click', triggerPreencher);
 
 async function iniciarPreenchimentoAutomatico(modelo, temporada, episodio) {
+    let tituloFinal = gerarTitulo(modelo.nomeObra, temporada, episodio);
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
-    if (campoTitulo) setReactValue(campoTitulo, gerarTitulo(modelo.nomeObra, temporada, episodio));
+    if (campoTitulo) setReactValue(campoTitulo, tituloFinal);
+    
     let campoDescricao = document.querySelector('textarea');
     if (campoDescricao) setReactValue(campoDescricao, modelo.descricao);
-    
-    await selecionarMenuSuspenso("Conteúdo (opcional)", modelo.tipoConteudo);
-    await new Promise(resolve => setTimeout(resolve, 200)); 
-    await pesquisarEConfirmarSerie(modelo.nomeObra); 
 
-    if (modelo.tags) {
-        let listaTags = modelo.tags.split(',').map(t => t.trim());
-        for (let tag of listaTags) { 
-            if (tag !== "") {
-                await selecionarMenuSuspenso("Tags", tag); 
-                await new Promise(resolve => setTimeout(resolve, 300)); 
-            }
-        }
+    if (modelo.nomeObra) await vincularObra(modelo.nomeObra);
+
+    if (appSettings.enableRating && modelo.nota) {
+        await aplicarNota(modelo.nota, modelo.notaTemporada);
     }
-    if (modelo.playlist) await selecionarMenuSuspenso("Playlists", modelo.playlist);
-    if (modelo.idade) await selecionarMenuSuspenso("Classificação indicativa", modelo.idade);
+
+    if (modelo.tags) await selecionarTags(modelo.tags);
+    if (modelo.playlist) await selecionarPlaylist(modelo.playlist);
+    if (modelo.idade) await selecionarClassificacao(modelo.idade);
 
     if (appSettings.copyVis && modelo.visibility) {
         let visSpans = Array.from(document.querySelectorAll('span'));
-        let visBtn = visSpans.find(s => s.textContent.trim() === modelo.visibility);
-        if (visBtn) visBtn.closest('div').click();
+        let visBtn = visSpans.find(s => s.textContent.trim().toLowerCase() === modelo.visibility.toLowerCase());
+        if (visBtn) simularClique(visBtn.closest('button, div') || visBtn);
     }
-    showToast("✅ Tudo preenchido!");
+
+    showToast("✅ Tudo preenchido com sucesso!");
 }
 
 document.addEventListener('keydown', function(event) {
@@ -336,91 +691,87 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// ORDENADOR DE PLAYLIST
+// === ORDENADOR DE PLAYLIST ===
 document.getElementById('cinefy-btn-sort').addEventListener('click', async () => {
     let listContainer = document.querySelector('div[class*="VideoList"]');
     if (!listContainer) return;
+    showToast("🪄 Iniciando ordenação profunda... Não mexa o mouse!", 4000);
 
-    let items = Array.from(listContainer.querySelectorAll('div[draggable="true"]'));
-    if (items.length < 2) { showToast("⚠️ Poucos vídeos para ordenar."); return; }
+    let maxMoves = 40; let moves = 0; let isSorted = false;
+    while (!isSorted && moves < maxMoves) {
+        let items = Array.from(listContainer.querySelectorAll('div[draggable="true"]'));
+        if (items.length < 2) break;
 
-    let parsedItems = items.map(el => {
-        let titleEl = el.querySelector('span[class*="Title"]');
-        let title = titleEl ? titleEl.textContent.trim() : "";
-        let season = 1; let ep = 0;
+        let parsedItems = items.map(el => {
+            let titleEl = el.querySelector('span[class*="Title"]');
+            let title = titleEl ? titleEl.textContent.trim() : "";
+            let season = 1; let ep = 0;
+            let sMatch = title.match(/T\s*(\d+)/i);
+            if (sMatch) season = parseInt(sMatch[1]);
+            let eMatch = title.match(/Ep\.?\s*(\d+)/i);
+            if (eMatch) { ep = parseInt(eMatch[1]); } 
+            else { let lastNum = title.match(/(\d+)(?!.*\d)/); if (lastNum) ep = parseInt(lastNum[1]); }
+            return { title, season, ep, id: el.getAttribute('data-handler-id'), node: el };
+        });
 
-        let sMatch = title.match(/T\s*(\d+)/i);
-        if (sMatch) season = parseInt(sMatch[1]);
+        let currentIds = parsedItems.map(i => i.id);
+        let targetOrder = [...parsedItems].sort((a, b) => {
+            if (a.season !== b.season) return a.season - b.season;
+            return a.ep - b.ep;
+        });
+        let targetIds = targetOrder.map(i => i.id);
 
-        let eMatch = title.match(/Ep\.?\s*(\d+)/i);
-        if (eMatch) { ep = parseInt(eMatch[1]); } 
-        else { let lastNum = title.match(/(\d+)(?!.*\d)/); if (lastNum) ep = parseInt(lastNum[1]); }
-        
-        return { title, season, ep, id: el.getAttribute('data-handler-id') };
-    });
+        if (JSON.stringify(currentIds) === JSON.stringify(targetIds)) {
+            isSorted = true;
+            break;
+        }
 
-    let originalIds = parsedItems.map(i => i.id);
-
-    parsedItems.sort((a, b) => {
-        if (a.season !== b.season) return a.season - b.season;
-        return a.ep - b.ep;
-    });
-
-    let targetIds = parsedItems.map(i => i.id);
-    
-    if (JSON.stringify(originalIds) === JSON.stringify(targetIds)) {
-        showToast("✅ A playlist já está na ordem correta!");
-        return;
-    }
-
-    showToast("🪄 Iniciando ordenação... Solte o mouse!");
-
-    for (let i = 0; i < targetIds.length; i++) {
-        let currentDOMItems = Array.from(listContainer.querySelectorAll('div[draggable="true"]'));
-        let targetId = targetIds[i];
-        
-        let currentItemAtI = currentDOMItems[i];
-        let currentIdAtI = currentItemAtI.getAttribute('data-handler-id');
-
-        if (currentIdAtI !== targetId) {
-            showToast(`🪄 Ordenando... Movimento ${i + 1} de ${targetIds.length}`, 3000);
-
-            let sourceNode = currentDOMItems.find(el => el.getAttribute('data-handler-id') === targetId);
-            let targetNode = currentItemAtI; 
-            
-            targetNode.scrollIntoView({block: 'center', behavior: 'smooth'});
-            await new Promise(r => setTimeout(r, 400)); 
-            
-            await arrastarESoltarReact(sourceNode, targetNode);
-            await new Promise(r => setTimeout(r, 1500)); 
+        for (let i = 0; i < targetIds.length; i++) {
+            if (currentIds[i] !== targetIds[i]) {
+                let sourceItem = parsedItems.find(p => p.id === targetIds[i]);
+                let targetItem = parsedItems[i]; 
+                showToast(`🪄 Ajustando: ${sourceItem.title} -> Posição ${i + 1}`, 4000);
+                targetItem.node.scrollIntoView({block: 'center', behavior: 'smooth'});
+                await esperar(600); 
+                await arrastarESoltarSmooth(sourceItem.node, targetItem.node);
+                await esperar(2000); 
+                moves++;
+                break; 
+            }
         }
     }
-    showToast("✅ Playlist ordenada com sucesso!", 5000);
+
+    if (isSorted) { showToast("✅ Playlist ordenada perfeitamente!", 5000); } 
+    else { showToast("⚠️ Limite de movimentos atingido. Clique novamente se faltaram vídeos.", 5000); }
 });
 
-async function arrastarESoltarReact(source, target) {
+async function arrastarESoltarSmooth(source, target) {
     const dataTransfer = new DataTransfer();
     dataTransfer.effectAllowed = 'move';
-    
     let dragHandle = source.querySelector('svg') ? source.querySelector('svg').parentElement : source;
-
     let rectSource = dragHandle.getBoundingClientRect();
     let rectTarget = target.getBoundingClientRect();
+    let startX = rectSource.left + (rectSource.width / 2);
+    let startY = rectSource.top + (rectSource.height / 2);
+    let endX = rectTarget.left + (rectTarget.width / 2);
+    let endY = rectTarget.top + (rectTarget.height / 2);
 
-    let dragStartEvt = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer, clientX: rectSource.left, clientY: rectSource.top });
+    let dragStartEvt = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer, clientX: startX, clientY: startY });
     dragHandle.dispatchEvent(dragStartEvt);
-    await new Promise(r => setTimeout(r, 50));
+    await esperar(50);
 
-    let dragEnterEvt = new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer, clientX: rectTarget.left, clientY: rectTarget.top });
-    target.dispatchEvent(dragEnterEvt);
-    
-    let dragOverEvt = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientX: rectTarget.left, clientY: rectTarget.top + 5 });
-    target.dispatchEvent(dragOverEvt);
-    await new Promise(r => setTimeout(r, 50));
+    let steps = 15;
+    for (let i = 1; i <= steps; i++) {
+        let curX = startX + ((endX - startX) * (i / steps));
+        let curY = startY + ((endY - startY) * (i / steps));
+        let elUnder = document.elementFromPoint(curX, curY) || target;
+        let dragOverEvt = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientX: curX, clientY: curY });
+        elUnder.dispatchEvent(dragOverEvt);
+        await esperar(30);
+    }
 
-    let dropEvt = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX: rectTarget.left, clientY: rectTarget.top + 5 });
+    let dropEvt = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX: endX, clientY: endY });
     target.dispatchEvent(dropEvt);
-
     let dragEndEvt = new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer });
     dragHandle.dispatchEvent(dragEndEvt);
 }
