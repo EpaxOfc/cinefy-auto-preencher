@@ -5,78 +5,123 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <h2>⚙️ Configurações Cinefy</h2>
+    <h2>⚙️ Preferências do Autofill</h2>
+
+    <div class="section">
+        <div class="section-title">📡 Integração Externa</div>
+        
+        <div class="switch-row">
+            <div class="switch-label-col">
+                <span class="switch-title">Sincronizar com Extensão Helper</span>
+                <span class="switch-desc">Puxa notas do Jikan/MAL/Local automaticamente.</span>
+                <span id="integration-status">Buscando extensão...</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="enable-integration" disabled>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="switch-row">
+            <div class="switch-label-col">
+                <span class="switch-title">Aplicar Nota Automaticamente</span>
+                <span class="switch-desc">Verifica e aplica a nota salva no vídeo.</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="enable-rating">
+                <span class="slider"></span>
+            </label>
+        </div>
+        
+        <div class="switch-row">
+            <div class="switch-label-col">
+                <span class="switch-title">Copiar Visibilidade</span>
+                <span class="switch-desc">Copia o estado "Público" ou "Privado".</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="copy-vis">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="switch-row">
+            <div class="switch-label-col">
+                <span class="switch-title">Usar nome da Obra como Título</span>
+                <span class="switch-desc">Se desligado, o Título e a Obra salvos no slot serão totalmente independentes.</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="use-obra-as-title">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
     
     <div class="section">
         <div class="section-title">⌨️ Atalhos do Teclado</div>
-        <p class="help-text">Clique na caixa e pressione a combinação desejada.</p>
+        <p class="help-text">Os atalhos se salvam automaticamente ao digitar.</p>
         <div class="row">
             <div>
-                <label>Copiar/Salvar</label>
+                <label>Copiar/Salvar <button class="mini-reset" id="reset-key-save" title="Resetar para Alt+S">↺</button></label>
                 <input type="text" id="key-save" class="key-recorder" readonly>
             </div>
             <div>
-                <label>Preencher Tudo</label>
+                <label>Preencher <button class="mini-reset" id="reset-key-fill" title="Resetar para Alt+B">↺</button></label>
                 <input type="text" id="key-fill" class="key-recorder" readonly>
             </div>
         </div>
     </div>
 
-    <!-- SEÇÃO DE DELAYS E RETRY -->
     <div class="section">
         <div class="section-title">⏱️ Velocidades de Espera (Delays)</div>
-        <label>Busca da Obra (ms)</label>
-        <input type="number" id="delay-obra" min="500" max="6000" step="100" value="2000">
-
-        <label style="margin-top:8px;">Abrir Menus (Tags/Idade) (ms)</label>
-        <input type="number" id="delay-menu" min="200" max="4000" step="50" value="600">
-
-        <label style="margin-top:8px;">Busca da Playlist (ms)</label>
-        <input type="number" id="delay-playlist" min="300" max="5000" step="100" value="1000">
-
-        <div class="checkbox-row" style="margin-top: 12px;">
-            <input type="checkbox" id="retry-on-fail" checked>
-            <label for="retry-on-fail">Tentar novamente 3 vezes se falhar (metade do tempo)</label>
+        <div class="row" style="margin-bottom: 10px;">
+            <div>
+                <label>Obra (ms)</label>
+                <input type="number" id="delay-obra" min="500" step="100">
+            </div>
+            <div>
+                <label>Menus (ms)</label>
+                <input type="number" id="delay-menu" min="200" step="50">
+            </div>
+            <div>
+                <label>Playlist (ms)</label>
+                <input type="number" id="delay-playlist" min="300" step="100">
+            </div>
+        </div>
+        <div class="switch-row">
+            <div class="switch-label-col">
+                <span class="switch-title">Sistema de Retry (3x)</span>
+                <span class="switch-desc">Tenta novamente em caso de falhas de carregamento.</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="retry-on-fail">
+                <span class="slider"></span>
+            </label>
         </div>
     </div>
 
-    <!-- NOVA SEÇÃO: AVALIAÇÃO DA OBRA -->
     <div class="section">
-        <div class="section-title">⭐ Avaliação da Obra (Nota)</div>
-        <div class="checkbox-row">
-            <input type="checkbox" id="enable-rating" checked>
-            <label for="enable-rating">Verificar/Aplicar a nota salva automaticamente</label>
-        </div>
-        <p class="help-text" style="margin-top:5px;">A extensão capta a nota quando você clica em "Avaliar" e a reaplica em episódios futuros.</p>
-    </div>
-
-    <div class="section">
-        <div class="section-title">📝 Template Rápido (Botão Amarelo)</div>
-        <label>Título Padrão</label>
-        <input type="text" id="title-template" value="Nome Anime | T1 Ep. 01">
+        <div class="section-title">📝 Textos Dinâmicos</div>
+        <label>Título Padrão (Template Rápido)</label>
+        <input type="text" id="title-template" style="margin-bottom: 10px;">
         
-        <label style="margin-top:12px;">Descrição Padrão</label>
-        <textarea id="desc-template" rows="7"></textarea>
-    </div>
-
-    <div class="section">
-        <div class="section-title">⚙️ Títulos Dinâmicos (Preencher)</div>
-        <p class="help-text">Use <b>{obra}</b>, <b>{temp}</b> e <b>{ep}</b> onde preferir.</p>
-        <label>Formato (Sem Temporada)</label>
-        <input type="text" id="title-no-temp" value="{obra} | Ep. {ep}">
+        <label>Formato de Preenchimento (Sem Temp)</label>
+        <input type="text" id="title-no-temp" style="margin-bottom: 10px;">
         
-        <label style="margin-top:8px;">Formato (Com Temporada)</label>
-        <input type="text" id="title-temp" value="{obra} | T{temp} Ep. {ep}">
+        <label>Formato de Preenchimento (Com Temp)</label>
+        <input type="text" id="title-temp" style="margin-bottom: 10px;">
+
+        <label>Descrição Padrão</label>
+        <textarea id="desc-template" rows="4"></textarea>
     </div>
 
-    <div class="section">
-        <div class="checkbox-row">
-            <input type="checkbox" id="copy-vis">
-            <label for="copy-vis">Copiar e colar Visibilidade (Público/Privado)</label>
+    <!-- Barra estilo Discord (Aparece ao editar textos/números) -->
+    <div id="unsaved-bar">
+        <span>⚠️ Modificações não salvas</span>
+        <div class="unsaved-actions">
+            <button id="btn-reset">Desfazer</button>
+            <button id="btn-save-bar">Salvar</button>
         </div>
     </div>
-
-    <button id="btn-save">💾 Salvar Configurações</button>
 
     <script src="popup.js"></script>
 </body>

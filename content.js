@@ -1,8 +1,15 @@
-// (TRAVA DE TESTE)
+// ==========================================
+// 🛠️ MODO DESENVOLVEDOR (TRAVA DE TESTE)
 // true  = Altera a barra e NÃO fecha o modal
 // false = Altera a barra, clica em Avaliar
 const MODO_TESTE_NOTA = false; 
-
+const MODO_DEBUG = false; 
+const logger = {
+    log: (...args) => MODO_DEBUG && console.log(...args),
+    warn: (...args) => MODO_DEBUG && console.warn(...args),
+    error: (...args) => MODO_DEBUG && console.error(...args)
+};
+// ==========================================
 
 const defaultDesc = `✨ Minhas Redes Sociais
 ---------------------------------
@@ -24,7 +31,8 @@ let appSettings = {
     delayMenu: 600,
     delayPlaylist: 1000,
     retryOnFail: true,
-    enableRating: true
+    enableRating: true,
+    useObraAsTitle: true
 };
 
 chrome.storage.local.get(['appSettings'], (data) => { if(data.appSettings) appSettings = Object.assign(appSettings, data.appSettings); });
@@ -47,7 +55,20 @@ const uiStyles = `
     .cinefy-btn-save { background: #a855f7; color: white; } .cinefy-btn-save:hover { background: #9333ea; }
     .cinefy-btn-fill { background: #2dd4bf; color: black; } .cinefy-btn-fill:hover { background: #14b8a6; }
     #cinefy-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999999; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
-    .cinefy-modal { background: #18181b; padding: 20px; border-radius: 12px; width: 350px; border: 1px solid #3f3f46; color: white; font-family: 'Segoe UI', sans-serif; }
+    
+    .cinefy-modal { 
+        background: #18181b; padding: 20px; border-radius: 12px; 
+        width: 420px; min-width: 380px; max-width: 90vw; 
+        border: 1px solid #3f3f46; color: white; font-family: 'Segoe UI', sans-serif;
+        resize: both; overflow: auto; /* Permite arrastar nas DUAS direções */
+    }
+    
+    .mini-reset {
+        background: none; border: none; color: #a1a1aa; float: right; 
+        cursor: pointer; font-size: 16px; padding: 0 4px; transition: 0.2s;
+    }
+    .mini-reset:hover { color: #fff; transform: scale(1.1); }
+    
     .cinefy-modal h2 { margin-top: 0; font-size: 18px; text-align: center; color: #a855f7;}
     .cinefy-modal label { font-size: 12px; color: #a1a1aa; margin-bottom: 5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cinefy-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px;}
@@ -73,7 +94,6 @@ document.addEventListener('click', (e) => {
             const scoreSpan = modal.querySelector('span[class*="Score-sc-"]');
             if (scoreSpan) ultimaNotaDetectada = scoreSpan.textContent.trim();
             
-            // Pega qual temporada estava selecionada ao clicar em Avaliar
             const tempDisplay = modal.querySelector('div[class*="SelectMain"] span[class*="DisplayName"]');
             if (tempDisplay) ultimaTempNotaDetectada = tempDisplay.textContent.trim();
         }
@@ -133,6 +153,33 @@ async function executarComRetry(verificarFn, delayOriginal, descricao = "") {
     return null;
 }
 
+// === LÓGICA DE MEMÓRIA DE TAMANHO DO MODAL ===
+function gerenciarTamanhoModal() {
+    const modal = document.querySelector('.cinefy-modal');
+    if (!modal) return;
+    
+    let w = localStorage.getItem('cinefyModalW');
+    let h = localStorage.getItem('cinefyModalH');
+    if (w) modal.style.width = w;
+    if (h) modal.style.height = h;
+
+    // Salva o tamanho toda vez que o usuário terminar de redimensionar
+    modal.addEventListener('mouseup', () => {
+        if (modal.style.width) localStorage.setItem('cinefyModalW', modal.style.width);
+        if (modal.style.height) localStorage.setItem('cinefyModalH', modal.style.height);
+    });
+
+    const btnReset = document.getElementById('btn-reset-modal-size');
+    if (btnReset) {
+        btnReset.onclick = () => {
+            modal.style.width = ''; 
+            modal.style.height = ''; 
+            localStorage.removeItem('cinefyModalW');
+            localStorage.removeItem('cinefyModalH');
+        };
+    }
+}
+
 // === LOCALIZADORES BASEADOS NO HTML DO CINEFY ===
 function obterBlocoPergunta(nomeTitulo) {
     const nomeLower = nomeTitulo.toLowerCase().trim();
@@ -149,9 +196,7 @@ function obterValorAtualDoCampo(nomeCampo) {
     const displaySpan = bloco.querySelector('span[class*="DisplayName"]');
     if (!displaySpan) return "";
     const txt = displaySpan.textContent.trim();
-    if (displaySpan.className.includes("Placeholder") || txt.toLowerCase() === "selecionar") {
-        return "";
-    }
+    if (displaySpan.className.includes("Placeholder") || txt.toLowerCase() === "selecionar") return "";
     return txt;
 }
 
@@ -185,16 +230,30 @@ function clicarOpcaoNoMenu(textoBusca) {
     const svgIcon = itemLinha.querySelector('div[class*="Icon"] svg');
     if (svgIcon) {
         const pathData = svgIcon.innerHTML;
-        if (!pathData.includes('M208,28H48')) return true; // Já marcado
+        if (!pathData.includes('M208,28H48')) return true; 
     }
 
     simularClique(alvo.closest('div[role="option"], li, button') || alvo);
     return true;
 }
 
+function gerarTitulo(baseName, temp, ep) {
+    let epF = ep ? ep.toString().trim() : "01";
+    if (epF.length === 1) epF = "0" + epF;
+    let t = temp ? temp.toString().trim() : "";
+    let nomeLimpo = baseName.replace(/\s*\(\d{4}\)$/, '').trim();
+    
+    if (t !== "") {
+        let tpl = appSettings.titleTemp || "{obra} | T{temp} Ep. {ep}";
+        return tpl.replace(/{obra}/g, nomeLimpo).replace(/{temp}/g, t).replace(/{ep}/g, epF);
+    } else {
+        let tpl = appSettings.titleNoTemp || "{obra} | Ep. {ep}";
+        return tpl.replace(/{obra}/g, nomeLimpo).replace(/{ep}/g, epF);
+    }
+}
+
 // === INTERAÇÕES AUTOMÁTICAS ===
 
-// 1 & 2: Vincular Obra
 async function vincularObra(nomeObra) {
     if (!nomeObra) return;
     const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra (opcional)");
@@ -241,7 +300,6 @@ async function vincularObra(nomeObra) {
     await fecharMenu();
 }
 
-// 3: Tags
 async function selecionarTags(tagsStr) {
     if (!tagsStr) return;
     const bloco = obterBlocoPergunta("Tags");
@@ -249,7 +307,6 @@ async function selecionarTags(tagsStr) {
 
     const valorAtual = obterValorAtualDoCampo("Tags");
     const listaTags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-
     if (listaTags.length === 1 && valorAtual.toLowerCase() === listaTags[0].toLowerCase()) return;
 
     abrirCampoDropdown(bloco);
@@ -262,7 +319,6 @@ async function selecionarTags(tagsStr) {
     await fecharMenu();
 }
 
-// 4: Playlists
 async function selecionarPlaylist(nomePlaylist) {
     if (!nomePlaylist) return;
     const bloco = obterBlocoPergunta("Playlists");
@@ -287,7 +343,6 @@ async function selecionarPlaylist(nomePlaylist) {
     await fecharMenu();
 }
 
-// 5: Classificação indicativa
 async function selecionarClassificacao(idadeStr) {
     if (!idadeStr) return;
     const bloco = obterBlocoPergunta("Classificação indicativa");
@@ -311,30 +366,47 @@ async function selecionarClassificacao(idadeStr) {
     await fecharMenu();
 }
 
-// 6: Aplicar Avaliação (NOTA)
-async function aplicarNota(notaDesejada, temporadaDesejada) {
+// 6: Aplicar Avaliação (NOTA) INTELIGENTE
+async function aplicarNota(notaDesejada, temporadaDesejada, tituloOriginalHelper, contexto) {
+    logger.log(`[Cinefy Autofill -> aplicarNota] 🎬 Alvo: Nota ${notaDesejada} na [${temporadaDesejada}]`);
     if (!notaDesejada || !appSettings.enableRating) return;
     if (!temporadaDesejada) temporadaDesejada = "Todas as temporadas";
+
+    let valDesejado = parseFloat(notaDesejada);
+    if (isNaN(valDesejado)) valDesejado = 10;
+    if (valDesejado < 1) valDesejado = 1;
+    if (valDesejado > 10) valDesejado = 10;
 
     const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra");
     if (!blocoObra) return;
 
-    // Verificando a trava de 24 horas para aquela temporada específica
+    // LÓGICA INTELIGENTE 1: Verifica na tela se já está avaliado corretamente (Pulo)
     const pAvaliacao = Array.from(blocoObra.querySelectorAll('p')).find(p => p.textContent.toLowerCase().includes('sua avaliação'));
     if (pAvaliacao && !MODO_TESTE_NOTA) {
-        const textoAval = pAvaliacao.textContent.toLowerCase();
-        let bloqueado = false;
+        const textoAval = pAvaliacao.textContent.toLowerCase(); // "sua avaliação · new world: 8.00"
+        
+        let seasonStrInUI = textoAval.includes('·') ? textoAval.split('·')[1].split(':')[0].trim() : "todas as temporadas";
+        let seasonMatches = false;
         
         if (temporadaDesejada.toLowerCase() === "todas as temporadas") {
-            // Se o texto tiver '·', significa que ele votou em uma temp específica e NÃO na obra toda
-            if (!textoAval.includes('·')) bloqueado = true;
+            if (seasonStrInUI === "todas as temporadas") seasonMatches = true;
         } else {
-            if (textoAval.includes(temporadaDesejada.toLowerCase())) bloqueado = true;
+            if (seasonStrInUI === temporadaDesejada.toLowerCase()) seasonMatches = true;
+            // Verifica o nome exato retornado da Helper (Ex: "Dr. STONE New World" contém "new world")
+            if (tituloOriginalHelper && tituloOriginalHelper.toLowerCase().includes(seasonStrInUI)) seasonMatches = true;
         }
         
-        if (bloqueado) {
-            console.log(`[Cinefy Autofill] Trava de 24h ativa para: ${temporadaDesejada}. Pulando a nota.`);
-            return;
+        if (seasonMatches) {
+            const matchNota = textoAval.match(/(\d+\.\d{2})/);
+            const currentScore = matchNota ? parseFloat(matchNota[1]) : 0;
+            
+            if (Math.abs(currentScore - valDesejado) < 0.1) {
+                logger.log(`[Cinefy Autofill] ✅ A nota ${valDesejado} já está certa na tela principal. Pulando modal.`);
+                return; // Pula totalmente sem nem abrir o modal!
+            } else {
+                logger.warn(`[Cinefy Autofill] 🔒 TRAVA DE 24H ATIVA. A nota está diferente, mas o Cinefy não deixa trocar agora. Cancelando.`);
+                return;
+            }
         }
     }
 
@@ -351,33 +423,90 @@ async function aplicarNota(notaDesejada, temporadaDesejada) {
     const modal = document.querySelector('[role="dialog"]') || document.querySelector('div[class*="Panel-sc-"]');
     if (!modal) return;
 
-    // 1. ALTERAR A TEMPORADA DA AVALIAÇÃO
+    let notaUsada = valDesejado;
     const btnTemp = modal.querySelector('div[class*="SelectMain"]');
+    
     if (btnTemp) {
         const spanDisplay = btnTemp.querySelector('span[class*="DisplayName"]');
         const currentTemp = spanDisplay ? spanDisplay.textContent.trim().toLowerCase() : "";
         
         if (currentTemp !== temporadaDesejada.toLowerCase()) {
             simularClique(btnTemp);
-            await esperar(500); // Aguarda o menu abrir
+            await esperar(500); 
             
-            clicarOpcaoNoMenu(temporadaDesejada);
-            await esperar(600); // Aguarda o modal se atualizar (MUITO IMPORTANTE)
+            let clicouOpcao = false;
+            const menuContainer = document.querySelector('div[class*="SelectMenuContainer"]') || document.body;
+            const elementosList = Array.from(menuContainer.querySelectorAll('span, p, div')).filter(el => {
+                if (el.closest('#cinefy-container') || el.closest('#cinefy-modal-overlay')) return false;
+                if (el.matches('span[class*="Text-sc-"], label[class*="Label-sc-"]')) return false;
+                return el.textContent && el.textContent.trim().length > 1;
+            });
+            elementosList.sort((a, b) => a.textContent.trim().length - b.textContent.trim().length);
+
+            if (tituloOriginalHelper) {
+                let originalLower = tituloOriginalHelper.toLowerCase();
+                for (let el of elementosList) {
+                    let txt = el.textContent.trim().toLowerCase();
+                    if (txt.length > 3 && originalLower.includes(txt) && txt !== "todas as temporadas") {
+                        simularClique(el.closest('div[role="option"], li, button') || el);
+                        clicouOpcao = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!clicouOpcao) {
+                clicouOpcao = clicarOpcaoNoMenu(temporadaDesejada);
+            }
+
+            if (!clicouOpcao) {
+                clicouOpcao = clicarOpcaoNoMenu("Todas as temporadas");
+                
+                if (contexto) {
+                    if (contexto.modelo.notaTemporada && contexto.modelo.notaTemporada.toLowerCase() === "todas as temporadas" && contexto.modelo.nota) {
+                        notaUsada = parseFloat(contexto.modelo.nota);
+                    } else {
+                        let tempNumAtual = parseInt(contexto.temporada) || 1;
+                        if (tempNumAtual > 1 && appSettings.enableIntegration && typeof obterNotaDaIntegracao === "function") {
+                            showToast("🔄 Calculando média das temporadas...", 4000);
+                            let soma = 0, count = 0;
+                            for (let t = 1; t <= tempNumAtual; t++) {
+                                let res = await obterNotaDaIntegracao(contexto.modelo.nomeObra, t, 1);
+                                if (res && res.sucesso && res.nota) {
+                                    soma += parseFloat(res.nota);
+                                    count++;
+                                }
+                            }
+                            if (count > 0) {
+                                notaUsada = soma / count;
+                                showToast(`⭐ Média (1 a ${tempNumAtual}): ${notaUsada.toFixed(2)}`, 4000);
+                            }
+                        }
+                    }
+                }
+            }
+            await esperar(600); 
         }
     }
 
-    // 2. ALTERAR O SLIDER (BARRA DE NOTA)
+    // LÓGICA INTELIGENTE 2: Verifica a nota DENTRO do modal antes de mudar a barra
+    const scoreSpanModal = modal.querySelector('span[class*="Score-sc-"]');
+    const currentModalScore = scoreSpanModal ? parseFloat(scoreSpanModal.textContent.trim()) : 0;
+    
+    if (Math.abs(currentModalScore - notaUsada) < 0.1) {
+        logger.log(`[Cinefy Autofill] A nota do modal já é ${notaUsada}. Fechando sem salvar.`);
+        await fecharMenu();
+        return;
+    }
+
     const track = modal.querySelector('div[class*="Track-sc-"]');
     if (track) {
         const rect = track.getBoundingClientRect();
+        if (isNaN(notaUsada)) notaUsada = 10;
+        if (notaUsada < 1) notaUsada = 1;
+        if (notaUsada > 10) notaUsada = 10;
         
-        let val = parseFloat(notaDesejada);
-        if (isNaN(val)) val = 10;
-        if (val < 1) val = 1;
-        if (val > 10) val = 10;
-        
-        // Trilha vai de 1 a 10 (range = 9)
-        const percent = (val - 1) / 9;
+        const percent = (notaUsada - 1) / 9;
         const targetX = rect.left + (rect.width * percent);
         const targetY = rect.top + (rect.height / 2);
 
@@ -385,12 +514,10 @@ async function aplicarNota(notaDesejada, temporadaDesejada) {
         await esperar(400); 
     }
 
-    // 3. FINALIZAR (CLICAR EM AVALIAR)
     const btnAvaliar = Array.from(modal.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'avaliar');
     
     if (MODO_TESTE_NOTA) {
-        showToast(`🛠️ MODO TESTE: Barra movida para ${notaDesejada} em [${temporadaDesejada}]. NÃO FECHADO PARA AVALIAÇÃO.`);
-        // Note que o fecharMenu() FOI REMOVIDO DAQUI para a tela ficar aberta
+        showToast(`🛠️ TESTE: Barra movida para ${notaUsada}. Modal mantido aberto!`);
     } else {
         if (btnAvaliar) {
             simularClique(btnAvaliar);
@@ -401,14 +528,12 @@ async function aplicarNota(notaDesejada, temporadaDesejada) {
     }
 }
 
-// === EXTRAÇÃO PARA SALVAR TELA ===
+
 function extrairObraAtual(tituloCompleto) {
     const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra (opcional)");
     if (blocoObra) {
         const pNome = blocoObra.querySelector('div[class*="selected"] p');
-        if (pNome && pNome.textContent.trim()) {
-            return pNome.textContent.trim(); 
-        }
+        if (pNome && pNome.textContent.trim()) return pNome.textContent.trim(); 
     }
     return tituloCompleto ? tituloCompleto.split(/[|-]/)[0].trim() : "";
 }
@@ -488,30 +613,14 @@ chrome.storage.local.get(['cinefySlots', 'slotAtivo'], function(data) {
 function atualizarNomesSelect() {
     let select = document.getElementById('cinefy-slot');
     for (let i = 0; i < 5; i++) {
-        let nome = arrayModelos[i] && arrayModelos[i].nomeObra ? arrayModelos[i].nomeObra : `(Vazio)`;
+        let nObj = arrayModelos[i] || {};
+        let nome = appSettings.useObraAsTitle ? (nObj.nomeObra || `(Vazio)`) : (nObj.titulo || `(Vazio)`);
         select.options[i].text = `Slot ${i + 1}: ${nome}`;
     }
 }
 document.getElementById('cinefy-slot').addEventListener('change', (e) => { chrome.storage.local.set({ 'slotAtivo': e.target.value }); });
 const overlay = document.getElementById('cinefy-modal-overlay');
 
-function gerarTitulo(obra, temp, ep) {
-    let epF = ep ? ep.toString().trim() : "01";
-    if (epF.length === 1) epF = "0" + epF;
-    let t = temp ? temp.toString().trim() : "";
-    
-    let obraLimpa = obra.replace(/\s*\(\d{4}\)$/, '').trim();
-    
-    if (t !== "") {
-        let tpl = appSettings.titleTemp || "{obra} | T{temp} Ep. {ep}";
-        return tpl.replace(/{obra}/g, obraLimpa).replace(/{temp}/g, t).replace(/{ep}/g, epF);
-    } else {
-        let tpl = appSettings.titleNoTemp || "{obra} | Ep. {ep}";
-        return tpl.replace(/{obra}/g, obraLimpa).replace(/{ep}/g, epF);
-    }
-}
-
-// Inserir Template Rápido
 document.getElementById('cinefy-btn-template').addEventListener('click', () => {
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
     if (campoTitulo) setReactValue(campoTitulo, appSettings.titleTemplate);
@@ -523,50 +632,49 @@ document.getElementById('cinefy-btn-template').addEventListener('click', () => {
 // Copiar & Salvar Tela
 function triggerSalvar() {
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
-    let tituloCompleto = campoTitulo ? campoTitulo.value : "";
-    let l_obra = extrairObraAtual(tituloCompleto);
+    let l_titulo_bruto = campoTitulo ? campoTitulo.value : "";
+    let l_titulo = l_titulo_bruto.split('|')[0].trim(); // Extrai apenas o nome base
+    
+    let l_obra = extrairObraAtual(l_titulo_bruto);
     let l_desc = document.querySelector('textarea') ? document.querySelector('textarea').value : "";
     let l_play = obterValorAtualDoCampo("Playlists");
     let l_idade = obterValorAtualDoCampo("Classificação indicativa");
     let l_tags = obterValorAtualDoCampo("Tags");
     let l_vis = appSettings.copyVis ? lerVisibilidade() : "";
 
-    // LÓGICA INTELIGENTE DE CAPTURA DA NOTA E TEMPORADA PELA TELA
-    let l_nota = ultimaNotaDetectada;
-    let l_nota_temp = ultimaTempNotaDetectada;
+    let l_nota = "";
+    let l_nota_temp = "Todas as temporadas";
 
     const blocoObra = document.querySelector('div[class*="Container-sc-d623e18b"]') || obterBlocoPergunta("Vincular a uma obra");
     if (blocoObra) {
         const pAvaliacao = Array.from(blocoObra.querySelectorAll('p')).find(p => p.textContent.toLowerCase().includes('sua avaliação'));
         if (pAvaliacao) {
-            const textoAval = pAvaliacao.textContent; // Ex: "Sua avaliação · Temporada 1: 3.55" ou "Sua avaliação: 10.00"
-            
-            // Pega os números (Nota)
+            const textoAval = pAvaliacao.textContent; 
             const matchNota = textoAval.match(/(\d+\.\d{2})/);
-            if (matchNota && !l_nota) l_nota = matchNota[1];
+            if (matchNota) l_nota = matchNota[1];
             
-            // Pega a Temporada pelo separador '·'
             if (textoAval.includes('·')) {
                 const partes = textoAval.split('·');
                 if (partes.length > 1) {
-                    const textoTemp = partes[1].split(':')[0].trim();
-                    if (!l_nota_temp) l_nota_temp = textoTemp;
+                    l_nota_temp = partes[1].split(':')[0].trim();
                 }
-            } else {
-                if (!l_nota_temp) l_nota_temp = "Todas as temporadas";
             }
         }
     }
-    
-    // Fallbacks
-    if (!l_nota_temp) l_nota_temp = "Todas as temporadas";
-    if (!l_nota) l_nota = "10.00";
 
     overlay.innerHTML = `
         <div class="cinefy-modal">
-            <h2>Revisar Modelo</h2>
-            <label>Obra Exata (com ano)</label>
-            <input id="m-obra" class="cinefy-input" value="${l_obra}">
+            <h2>Revisar Modelo <button id="btn-reset-modal-size" class="mini-reset" title="Resetar Tamanho">↺</button></h2>
+            <div class="cinefy-row">
+                <div style="flex: 1;">
+                    <label>Obra Vinculada (Com Ano)</label>
+                    <input id="m-obra" class="cinefy-input" value="${l_obra}">
+                </div>
+                <div style="flex: 1;">
+                    <label>Título Escrito (Original)</label>
+                    <input id="m-titulo" class="cinefy-input" value="${l_titulo}" placeholder="Ex: Meu Episódio">
+                </div>
+            </div>
             
             <div class="cinefy-row">
                 <div style="flex: 2;">
@@ -592,11 +700,14 @@ function triggerSalvar() {
         </div>
     `;
     overlay.style.display = 'flex';
+    gerenciarTamanhoModal(); // Ativa a memória do Resize
+    
     document.getElementById('btn-cancel-modal').onclick = () => { overlay.style.display = 'none'; };
     document.getElementById('btn-save-modal').onclick = () => {
         let slotIndex = document.getElementById('cinefy-slot').value;
         arrayModelos[slotIndex] = {
             nomeObra: document.getElementById('m-obra').value.trim(),
+            titulo: document.getElementById('m-titulo').value.trim(),
             notaTemporada: document.getElementById('m-nota-temp').value.trim(),
             nota: document.getElementById('m-nota').value.trim(),
             playlist: document.getElementById('m-play').value.trim(),
@@ -626,7 +737,7 @@ function triggerPreencher() {
 
     overlay.innerHTML = `
         <div class="cinefy-modal">
-            <h2>Preencher: ${modelo.nomeObra}</h2>
+            <h2>Preencher: ${appSettings.useObraAsTitle ? modelo.nomeObra : modelo.titulo} <button id="btn-reset-modal-size" class="mini-reset" title="Resetar Tamanho">↺</button></h2>
             <div class="cinefy-row">
                 <div><label>Temporada (Opcional)</label><input id="m-temp" class="cinefy-input" value="${lastTemp}" placeholder="Ex: 1"></div>
                 <div><label>Episódio</label><input id="m-ep" type="number" class="cinefy-input" value="${nextEp}"></div>
@@ -638,6 +749,8 @@ function triggerPreencher() {
         </div>
     `;
     overlay.style.display = 'flex';
+    gerenciarTamanhoModal(); // Ativa a memória do Resize
+    
     document.getElementById('m-ep').focus(); 
     document.getElementById('btn-cancel-modal').onclick = () => { overlay.style.display = 'none'; };
     document.getElementById('btn-fill-modal').onclick = () => {
@@ -654,7 +767,10 @@ function triggerPreencher() {
 document.getElementById('cinefy-btn-fill').addEventListener('click', triggerPreencher);
 
 async function iniciarPreenchimentoAutomatico(modelo, temporada, episodio) {
-    let tituloFinal = gerarTitulo(modelo.nomeObra, temporada, episodio);
+    let nomeBaseParaTitulo = appSettings.useObraAsTitle ? modelo.nomeObra : modelo.titulo;
+    if (!nomeBaseParaTitulo) nomeBaseParaTitulo = modelo.titulo || modelo.nomeObra;
+
+    let tituloFinal = gerarTitulo(nomeBaseParaTitulo, temporada, episodio);
     let campoTitulo = document.querySelector('input[placeholder="Seu título"]');
     if (campoTitulo) setReactValue(campoTitulo, tituloFinal);
     
@@ -663,8 +779,29 @@ async function iniciarPreenchimentoAutomatico(modelo, temporada, episodio) {
 
     if (modelo.nomeObra) await vincularObra(modelo.nomeObra);
 
-    if (appSettings.enableRating && modelo.nota) {
-        await aplicarNota(modelo.nota, modelo.notaTemporada);
+    if (appSettings.enableRating) {
+        logger.log("[Cinefy Autofill] 📋 Avaliação automática ativada.");
+        let notaFinal = modelo.nota;
+        let tempFinal = modelo.notaTemporada;
+        let tituloOriginalHelper = "";
+
+        if (appSettings.enableIntegration && typeof obterNotaDaIntegracao === "function") {
+            showToast("🔄 Consultando nota na extensão Mal Notas Extras...", 2000);
+            let res = await obterNotaDaIntegracao(modelo.nomeObra, temporada, episodio);
+            
+            if (res && res.sucesso && res.nota) {
+                notaFinal = res.nota;
+                tituloOriginalHelper = res.tituloOriginal; 
+                tempFinal = temporada ? `Temporada ${temporada}` : "Todas as temporadas"; 
+                showToast(`⭐ Nota ${notaFinal} obtida via Integração!`, 3000);
+            } else {
+                showToast(notaFinal ? "⚠️ Usando nota salva no Slot local." : "⚠️ Nenhuma nota disponível.", 2000);
+            }
+        } 
+
+        if (notaFinal || typeof obterNotaDaIntegracao === "function") {
+            await aplicarNota(notaFinal, tempFinal, tituloOriginalHelper, { modelo: modelo, temporada: temporada });
+        }
     }
 
     if (modelo.tags) await selecionarTags(modelo.tags);
@@ -678,6 +815,7 @@ async function iniciarPreenchimentoAutomatico(modelo, temporada, episodio) {
     }
 
     showToast("✅ Tudo preenchido com sucesso!");
+    logger.log("[Cinefy Autofill] 🎉 Preenchimento concluído.");
 }
 
 document.addEventListener('keydown', function(event) {
